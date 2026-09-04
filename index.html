@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tools — Y3llowDuck</title>
-<meta name="description" content="Small security tools that run offline. One file each, no install.">
+<meta name="description" content="Small offensive security tools. One file each, no install.">
 <link rel="icon" href="assets/duck-128.png" type="image/png">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#0d1117; --bg2:#161b22; --border:#30363d;
-    --blue:#58a6ff; --green:#3fb950; --yellow:#e3b341; --purple:#bc8cff;
+    --blue:#58a6ff; --green:#3fb950; --yellow:#e3b341; --purple:#bc8cff; --red:#f85149;
     --text:#e6edf3; --muted:#8b949e;
     --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
   }
@@ -24,26 +24,31 @@
   header nav{display:flex;gap:24px}
   header nav a{font-size:13px;color:var(--muted);text-decoration:none}
   header nav a:hover{color:var(--blue)}
-  .wrap{max-width:820px;margin:0 auto;padding:56px 32px 72px}
+  .wrap{max-width:900px;margin:0 auto;padding:56px 32px 72px}
   .eyebrow{font-family:var(--mono);font-size:11px;color:var(--green);
            letter-spacing:2px;text-transform:uppercase;margin:0 0 16px}
   h1{font-size:clamp(28px,5vw,42px);font-weight:700;letter-spacing:-1px;margin:0 0 14px;
      display:flex;align-items:center;gap:14px}
   h1 img{width:44px;height:44px;border-radius:50%;background:#1c2027}
-  .sub{color:var(--muted);font-size:15px;margin:0 0 44px;max-width:60ch}
-  .card{display:block;background:var(--bg2);border:1px solid var(--border);border-radius:10px;
-        padding:24px 26px;text-decoration:none;color:inherit;margin-bottom:16px;
+  .sub{color:var(--muted);font-size:15px;margin:0 0 40px;max-width:64ch}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+  .card{display:flex;flex-direction:column;background:var(--bg2);border:1px solid var(--border);
+        border-radius:10px;padding:20px 22px;text-decoration:none;color:inherit;
         transition:border-color .2s,background .2s}
   .card:hover{border-color:var(--blue);background:#1c2128}
-  .card h2{font-size:18px;margin:0 0 8px;color:var(--text)}
-  .card p{margin:0 0 14px;color:var(--muted);font-size:14px}
+  .card h2{font-size:16px;margin:0 0 8px;color:var(--text);font-family:var(--mono);font-weight:700}
+  .card p{margin:0 0 14px;color:var(--muted);font-size:13.5px;flex:1}
   .pills{display:flex;flex-wrap:wrap;gap:6px}
   .pill{font-family:var(--mono);font-size:10px;letter-spacing:.4px;text-transform:uppercase;
         border-radius:4px;padding:2px 8px;border:1px solid}
   .pill.blue{color:var(--blue);border-color:rgba(88,166,255,.35);background:rgba(88,166,255,.08)}
   .pill.green{color:var(--green);border-color:rgba(63,185,80,.35);background:rgba(63,185,80,.08)}
   .pill.purple{color:var(--purple);border-color:rgba(188,140,255,.35);background:rgba(188,140,255,.08)}
-  footer{border-top:1px solid var(--border);margin-top:56px;padding-top:24px;
+  .pill.yellow{color:var(--yellow);border-color:rgba(227,179,65,.35);background:rgba(227,179,65,.08)}
+  .pill.red{color:var(--red);border-color:rgba(248,81,73,.35);background:rgba(248,81,73,.08)}
+  .note{margin-top:36px;padding:16px 20px;border:1px solid var(--border);border-left:3px solid var(--yellow);
+        border-radius:6px;background:var(--bg2);font-size:13.5px;color:var(--muted)}
+  footer{border-top:1px solid var(--border);margin-top:48px;padding-top:24px;
          font-family:var(--mono);font-size:12px;color:var(--muted);text-align:center}
   footer a{color:var(--blue);text-decoration:none}
   @media(max-width:640px){ .wrap{padding:36px 18px 56px} header{padding:0 16px} }
@@ -51,28 +56,65 @@
 </head>
 <body>
 <header>
-  <a class="logo" href="https://y3llowduck.github.io/index.html">Y3llow<span>Duck</span></a>
+  <a class="logo" href="https://github.com/Y3llowDuck">Y3llow<span>Duck</span></a>
   <nav>
-    <a href="https://y3llowduck.github.io/index.html">About</a>
-    <a href="https://y3llowduck.github.io/posts.html">Posts</a>
-    <a href="https://github.com/Y3llowDuck/Tools">GitHub</a>
+    <a href="https://github.com/Y3llowDuck/Tools">Repo</a>
+    <a href="https://y3llowduck.github.io">Blog</a>
   </nav>
 </header>
 
 <div class="wrap">
   <p class="eyebrow">// tools</p>
   <h1><img src="assets/duck-128.png" alt="">Tools</h1>
-  <p class="sub">Small security tools that run offline. One file each, no install, no dependencies. Nothing you paste into them leaves your machine.</p>
+  <p class="sub">Small tools I wrote while doing offensive security work. Each one is self-contained, with its own README and license. Nothing to install or build.</p>
 
-  <a class="card" href="js-deobfuscator.html">
-    <h2>JS Duckfuscator &rarr;</h2>
-    <p>JavaScript deobfuscator and unpacker. Unwraps Dean Edwards packer layers, decodes character escapes and fromCharCode, folds split strings, and reformats the result so you can read it.</p>
-    <div class="pills">
-      <span class="pill blue">JavaScript</span>
-      <span class="pill purple">Deobfuscation</span>
-      <span class="pill green">Offline</span>
-    </div>
-  </a>
+  <div class="grid">
+
+    <a class="card" href="js-duckfuscator/js-deobfuscator.html">
+      <h2>js-duckfuscator</h2>
+      <p>Deobfuscates and unpacks JavaScript in the browser. Unwraps packer layers, decodes escapes, and reformats the result so you can read it.</p>
+      <div class="pills"><span class="pill blue">JavaScript</span><span class="pill purple">Deobfuscation</span></div>
+    </a>
+
+    <a class="card" href="RDP-Automation/">
+      <h2>RDP-Automation</h2>
+      <p>Enables RDP, creates a local admin account, and configures the firewall rules in one run.</p>
+      <div class="pills"><span class="pill blue">PowerShell</span><span class="pill red">Access</span></div>
+    </a>
+
+    <a class="card" href="nic3r/">
+      <h2>nic3r</h2>
+      <p>A nicer ASPX web shell.</p>
+      <div class="pills"><span class="pill yellow">ASP.NET</span><span class="pill red">Web Shell</span></div>
+    </a>
+
+    <a class="card" href="byteclipper/">
+      <h2>byteclipper</h2>
+      <p>Generates an msfvenom C# payload one-liner and copies it straight to your clipboard.</p>
+      <div class="pills"><span class="pill green">Bash</span><span class="pill red">Payloads</span></div>
+    </a>
+
+    <a class="card" href="port_check/">
+      <h2>port_check</h2>
+      <p>Checks which outbound ports a host can actually reach. Useful for finding the way out of a segmented network.</p>
+      <div class="pills"><span class="pill green">Bash</span><span class="pill blue">Recon</span></div>
+    </a>
+
+    <a class="card" href="port_check_PowerShell/">
+      <h2>port_check_PowerShell</h2>
+      <p>The same outbound port check, for Windows hosts where Bash is not an option.</p>
+      <div class="pills"><span class="pill blue">PowerShell</span><span class="pill blue">Recon</span></div>
+    </a>
+
+    <a class="card" href="oscp_exam-ai-tips/">
+      <h2>oscp_exam-ai-tips</h2>
+      <p>Scrapes OSCP success stories from Reddit and pulls out the strategies that keep coming up.</p>
+      <div class="pills"><span class="pill purple">Python</span><span class="pill yellow">OSCP</span></div>
+    </a>
+
+  </div>
+
+  <p class="note"><strong>Use responsibly.</strong> Several of these are offensive tools. They are here for authorized testing, lab work and study — use them on systems you own or have written permission to test.</p>
 
   <footer>
     <span>Y3llowDuck &middot; <a href="https://github.com/Y3llowDuck/Tools">github.com/Y3llowDuck/Tools</a></span>
