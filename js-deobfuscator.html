@@ -1,0 +1,921 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JS Duckfuscator</title>
+<link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='14'%3E%F0%9F%A6%86%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#ffffff; --canvas:#e8edf4; --panel:#ffffff; --panel2:#f2f5f9;
+    --border:#d2dae4; --border2:#e3e9f0;
+    --fg:#0b0e14; --muted:#3f4854; --faint:#6b7684;
+    --accent:#1352cc; --accent-dk:#0b3fa3; --violet:#6d28d9;
+    --amber:#b45309; --green:#0f7b3d; --err:#b3121f;
+    --shadow:0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.04);
+    --shadow-lift:0 2px 6px rgba(16,24,40,.10), 0 1px 2px rgba(16,24,40,.06);
+    --mono:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--fg);
+       font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;height:100vh;
+       display:flex;flex-direction:column}
+  ::selection{background:#cfe1ff}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+  /* ---- header ---- */
+  header{padding:10px 14px;background:linear-gradient(180deg,#fff,#f7f9fc);
+         border-bottom:1px solid var(--border);box-shadow:var(--shadow);z-index:2;
+         display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:relative}
+  header::before{content:'';position:absolute;inset:0 0 auto 0;height:3px;
+                 background:linear-gradient(90deg,var(--accent),var(--violet) 45%,#0891b2 72%,#f5b301)}
+  h1{font-size:15px;margin:0 10px 0 0;font-weight:650;letter-spacing:.01em;
+     display:flex;align-items:center;gap:8px}
+  .mark{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
+        border-radius:6px;background:linear-gradient(140deg,var(--accent),var(--violet));
+        color:#fff;font:600 11px/1 var(--mono);overflow:hidden;flex:none;
+        box-shadow:0 1px 3px rgba(19,82,204,.35)}
+  /* when a custom icon file is present it takes over the mark */
+  .mark img{width:100%;height:100%;object-fit:cover;object-position:50% 38%;
+        transform:scale(1.12);display:none}
+  .mark.has-img{background:#1c2027;border-radius:50%;
+        box-shadow:0 0 0 1px #fff, 0 0 0 2px rgba(19,82,204,.28), 0 1px 4px rgba(16,24,40,.20);
+        transition:transform .18s, box-shadow .18s}
+  .mark.has-img:hover{transform:translateY(-1px) rotate(-4deg);
+        box-shadow:0 0 0 1px #fff, 0 0 0 2px rgba(109,40,217,.40), 0 3px 8px rgba(16,24,40,.26)}
+  .mark.has-img img{display:block}
+  .mark.has-img b{display:none}
+  /* one continuous gradient across the whole wordmark, so "JS" and "Duckfuscator"
+     read as a single lockup; weight and tracking carry the hierarchy instead of color */
+  h1 .word{background:linear-gradient(95deg,var(--accent) 5%,var(--violet) 65%);
+          -webkit-background-clip:text;background-clip:text;color:transparent;
+          font-weight:650}
+  h1 .word i{font-style:normal;font-weight:600;letter-spacing:.09em;font-size:.92em;
+          padding-right:2px}
+  .spacer{flex:1}
+
+  /* ---- buttons ---- */
+  button{background:#fff;color:var(--fg);border:1px solid var(--border);
+         padding:6px 12px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;
+         box-shadow:var(--shadow);transition:transform .08s,box-shadow .12s,border-color .12s,color .12s}
+  button:hover{border-color:#9db4d8;color:var(--accent);box-shadow:var(--shadow-lift);transform:translateY(-1px)}
+  button:active{transform:translateY(0);box-shadow:var(--shadow)}
+  button.primary{background:linear-gradient(180deg,#2f6fe0,var(--accent));color:#fff;
+                 border-color:var(--accent-dk);font-weight:600;
+                 box-shadow:0 1px 2px rgba(11,63,163,.35),0 2px 6px rgba(11,63,163,.20)}
+  button.primary:hover{color:#fff;border-color:var(--accent-dk);filter:brightness(1.07);
+                 box-shadow:0 2px 8px rgba(11,63,163,.32),0 1px 2px rgba(11,63,163,.30)}
+  #btnClear:hover{border-color:#e6a4a9;color:var(--err)}
+
+  /* ---- options ---- */
+  .opts{padding:9px 14px;background:var(--panel2);border-bottom:1px solid var(--border);
+        display:flex;gap:8px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+  .opts label{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
+        background:#fff;border:1px solid var(--border2);border-radius:999px;padding:3px 11px 3px 8px;
+        transition:border-color .12s,background .12s,color .12s}
+  .opts label:hover{border-color:#9db4d8}
+  .opts label:has(input:checked){background:#eaf1fe;border-color:#b3ccf7;color:var(--accent-dk);font-weight:500}
+  .opts input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;margin:0}
+  select{background:#fff;color:var(--fg);border:1px solid var(--border2);
+         border-radius:999px;padding:2px 8px;font-size:12.5px;cursor:pointer}
+
+  /* ---- panes ---- */
+  main{flex:1;display:flex;flex-direction:row;min-height:0;padding:10px;background:var(--canvas)}
+  .pane{background:var(--panel);display:flex;flex-direction:column;min-width:0;min-height:0;
+        flex:1 1 0;overflow:hidden;border:1px solid var(--border);border-radius:10px;
+        box-shadow:var(--shadow)}
+  .pane-head{padding:7px 12px;background:linear-gradient(180deg,#fbfcfe,#f2f5f9);
+             border-bottom:1px solid var(--border2);
+             font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.06em;
+             text-transform:uppercase;display:flex;gap:8px;align-items:center;flex:none}
+  .pane-head::before{content:'';width:8px;height:8px;border-radius:50%;flex:none;
+             background:var(--dot,var(--faint));box-shadow:0 0 0 2px rgba(0,0,0,.04)}
+  #paneIn{--dot:var(--amber)}
+  #paneOut{--dot:var(--green)}
+  .pane-head .tag{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:500;
+             letter-spacing:0;text-transform:none;color:var(--faint)}
+
+  /* ---- draggable divider ---- */
+  #split{flex:0 0 12px;background:transparent;cursor:col-resize;position:relative;
+         display:flex;align-items:center;justify-content:center;touch-action:none}
+  #split::before{content:'';width:4px;height:36px;background:var(--border);border-radius:3px;
+         transition:background .12s,height .12s}
+  #split:hover::before,#split:focus-visible::before{background:var(--accent);height:52px}
+  body.dragging{cursor:col-resize;user-select:none}
+  body.dragging.vert{cursor:row-resize}
+
+  /* ---- code areas ---- */
+  textarea,pre{flex:1;margin:0;border:0;outline:0;background:var(--bg);color:var(--fg);
+       font-family:var(--mono);font-size:13px;line-height:1.6;padding:12px;
+       overflow:auto;white-space:pre;tab-size:4;border-radius:0 0 9px 9px}
+  textarea{resize:none}
+  textarea::placeholder{color:#98a3b3}
+  ::-webkit-scrollbar{width:12px;height:12px}
+  ::-webkit-scrollbar-thumb{background:#c3cedb;border-radius:8px;border:3px solid #fff}
+  ::-webkit-scrollbar-thumb:hover{background:#a7b6c8}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ---- status bar ---- */
+  #status{padding:7px 14px;border-top:1px solid var(--border);background:#fff;
+          font-size:12px;color:var(--muted);font-family:var(--mono);min-height:30px;
+          display:flex;align-items:center;gap:8px}
+  #status::before{content:'';width:7px;height:7px;border-radius:50%;flex:none;background:#9aa5b4}
+  #status.err{color:var(--err)}
+  #status.err::before{background:var(--err);box-shadow:0 0 0 3px rgba(179,18,31,.14)}
+  #status.ok{color:var(--green)}
+  #status.ok::before{background:var(--green);box-shadow:0 0 0 3px rgba(15,123,61,.14)}
+
+  /* ---- syntax ---- */
+  .kw{color:#a4111f}.str{color:#0a4a8f}.num{color:#04407e}.com{color:#68727f;font-style:italic}
+  .fn{color:#5b21b6}.op{color:#3a4451}.re{color:#0b6a30}
+
+  @media(max-width:900px){
+    header{gap:6px}
+    .spacer{display:none}
+    button{padding:6px 10px}
+    main{flex-direction:column}
+    #split{flex:0 0 12px;cursor:row-resize}
+    #split::before{width:36px;height:4px}
+    #split:hover::before,#split:focus-visible::before{width:52px;height:4px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="mark" id="mark" title="Drop an image here to use your own icon"><img id="logo" alt=""><b>&#129414;</b></span><span class="word"><i>JS</i> Duckfuscator</span></h1>
+  <button class="primary" id="btnRun">Deobfuscate &#9654;</button>
+  <button id="btnSample">Load sample</button>
+  <button id="btnOpen">Open file&hellip;</button>
+  <input type="file" id="file" accept=".js,.txt,.html,.json" hidden>
+  <div class="spacer"></div>
+  <button id="btnCopy">Copy output</button>
+  <button id="btnSave">Download .js</button>
+  <button id="btnClear">Clear</button>
+</header>
+
+<div class="opts">
+  <label><input type="checkbox" id="optPack" checked> Unpack eval / P.A.C.K.E.R. (recursive)</label>
+  <label><input type="checkbox" id="optEsc" checked> Decode \x \u octal escapes</label>
+  <label><input type="checkbox" id="optCharCode" checked> String.fromCharCode &rarr; text</label>
+  <label><input type="checkbox" id="optConcat" checked> Fold string concatenation</label>
+  <label><input type="checkbox" id="optDot" checked> a["b"] &rarr; a.b</label>
+  <label><input type="checkbox" id="optBeautify" checked> Beautify</label>
+  <label>Indent <select id="optIndent">
+    <option value="2">2 spaces</option>
+    <option value="4" selected>4 spaces</option>
+    <option value="tab">tab</option>
+  </select></label>
+  <label><input type="checkbox" id="optHl" checked> Syntax highlight</label>
+</div>
+
+<main>
+  <div class="pane" id="paneIn">
+    <div class="pane-head">Obfuscated input <span class="tag" id="inStats"></span></div>
+    <textarea id="input" spellcheck="false" placeholder="Paste obfuscated JavaScript here, then Ctrl+Enter."></textarea>
+  </div>
+  <div id="split" title="Drag to resize &mdash; double-click to reset to 50/50"></div>
+
+  <div class="pane" id="paneOut">
+    <div class="pane-head">Deobfuscated output <span class="tag" id="outStats"></span></div>
+    <pre id="output"><code></code></pre>
+  </div>
+</main>
+<div id="status">Ready.</div>
+
+<script>
+//---CORE-START---
+/* ------------------------------------------------------------------ *
+ * Tokenizer
+ * ------------------------------------------------------------------ */
+var KEYWORDS = new Set(['await','break','case','catch','class','const','continue','debugger',
+'default','delete','do','else','enum','export','extends','finally','for','function','if',
+'implements','import','in','instanceof','interface','let','new','package','private',
+'protected','public','return','static','super','switch','this','throw','try','typeof',
+'var','void','while','with','yield','null','true','false']);
+
+/* keywords after which "/" starts a regex and "+/-" are unary */
+var PREFIX_KEYWORDS = new Set(['return','typeof','instanceof','in','of','new','delete','void',
+'throw','case','do','else','yield','await']);
+
+var PUNCT = ['>>>=','...','===','!==','**=','<<=','>>=','>>>','&&=','||=','??=','=>','==','!=',
+'<=','>=','&&','||','??','?.','++','--','+=','-=','*=','/=','%=','&=','|=','^=','**','<<','>>',
+'{','}','(',')','[',']',';',',','<','>','+','-','*','/','%','&','|','^','!','~','?',':','=','.','#'];
+
+function isIdStart(c){ return /[A-Za-z_$]/.test(c) || c.charCodeAt(0) > 127; }
+function isIdPart(c){ return /[A-Za-z0-9_$]/.test(c) || c.charCodeAt(0) > 127; }
+
+function tokenize(src){
+  var toks = [], i = 0, n = src.length, prev = null;
+
+  function regexAllowed(){
+    if (!prev) return true;
+    if (prev.type === 'num' || prev.type === 'str' || prev.type === 'template' || prev.type === 'regex') return false;
+    if (prev.type === 'name') return KEYWORDS.has(prev.value) &&
+      ['this','super','true','false','null'].indexOf(prev.value) === -1;
+    if (prev.type === 'punct') return [')',']','}','++','--'].indexOf(prev.value) === -1;
+    return true;
+  }
+
+  function readTemplate(start){
+    var j = start + 1, depth = 0;
+    while (j < n){
+      var c = src[j];
+      if (c === '\\'){ j += 2; continue; }
+      if (c === '`' && depth === 0){ j++; break; }
+      if (c === '$' && src[j+1] === '{'){ depth++; j += 2; continue; }
+      if (c === '}' && depth > 0){ depth--; j++; continue; }
+      if (c === '`' && depth > 0){ j = readTemplate(j); continue; }
+      j++;
+    }
+    return j;
+  }
+
+  while (i < n){
+    var c = src[i], start = i;
+
+    if (/\s/.test(c)){
+      while (i < n && /\s/.test(src[i])) i++;
+      toks.push({type:'ws', value:src.slice(start,i)});
+      continue;
+    }
+    if (c === '/' && src[i+1] === '/'){
+      while (i < n && src[i] !== '\n') i++;
+      toks.push(prev = {type:'comment', value:src.slice(start,i), line:true});
+      continue;
+    }
+    if (c === '/' && src[i+1] === '*'){
+      i += 2;
+      while (i < n && !(src[i] === '*' && src[i+1] === '/')) i++;
+      i = Math.min(i + 2, n);
+      toks.push(prev = {type:'comment', value:src.slice(start,i), line:false});
+      continue;
+    }
+    if (c === '"' || c === "'"){
+      var q = c; i++;
+      while (i < n){
+        if (src[i] === '\\'){ i += 2; continue; }
+        if (src[i] === q){ i++; break; }
+        if (src[i] === '\n') break;
+        i++;
+      }
+      toks.push(prev = {type:'str', value:src.slice(start,i)});
+      continue;
+    }
+    if (c === '`'){
+      i = readTemplate(i);
+      toks.push(prev = {type:'template', value:src.slice(start,i)});
+      continue;
+    }
+    if (c === '/' && regexAllowed()){
+      var j = i + 1, inClass = false, ok = false;
+      while (j < n){
+        var d = src[j];
+        if (d === '\\'){ j += 2; continue; }
+        if (d === '\n') break;
+        if (d === '[') inClass = true;
+        else if (d === ']') inClass = false;
+        else if (d === '/' && !inClass){ j++; ok = true; break; }
+        j++;
+      }
+      if (ok){
+        while (j < n && /[a-z]/.test(src[j] || '')) j++;
+        i = j;
+        toks.push(prev = {type:'regex', value:src.slice(start,i)});
+        continue;
+      }
+    }
+    if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(src[i+1] || ''))){
+      var m = /^(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|(?:\d[\d_]*)?\.?\d[\d_]*(?:[eE][+-]?\d+)?)n?/.exec(src.slice(i));
+      i += m ? m[0].length : 1;
+      toks.push(prev = {type:'num', value:src.slice(start,i)});
+      continue;
+    }
+    if (isIdStart(c)){
+      while (i < n && isIdPart(src[i])) i++;
+      toks.push(prev = {type:'name', value:src.slice(start,i)});
+      continue;
+    }
+    var hit = null;
+    for (var p = 0; p < PUNCT.length; p++){
+      if (src.lastIndexOf(PUNCT[p], i) === i){ hit = PUNCT[p]; break; }
+    }
+    if (hit){ i += hit.length; toks.push(prev = {type:'punct', value:hit}); continue; }
+    i++;
+    toks.push(prev = {type:'punct', value:c});
+  }
+  return toks;
+}
+
+/* ------------------------------------------------------------------ *
+ * String literal helpers
+ * ------------------------------------------------------------------ */
+function parseStringLiteral(raw){
+  var q = raw[0];
+  var body = (raw.length > 1 && raw[raw.length-1] === q) ? raw.slice(1,-1) : raw.slice(1);
+  var out = '';
+  for (var i = 0; i < body.length; i++){
+    var c = body[i];
+    if (c !== '\\'){ out += c; continue; }
+    var e = body[++i];
+    if (e === 'n'){ out += '\n'; }
+    else if (e === 't'){ out += '\t'; }
+    else if (e === 'r'){ out += '\r'; }
+    else if (e === 'b'){ out += '\b'; }
+    else if (e === 'f'){ out += '\f'; }
+    else if (e === 'v'){ out += '\v'; }
+    else if (e === 'x'){ out += String.fromCharCode(parseInt(body.substr(i+1,2),16)); i += 2; }
+    else if (e === 'u'){
+      if (body[i+1] === '{'){
+        var end = body.indexOf('}', i);
+        out += String.fromCodePoint(parseInt(body.slice(i+2,end),16));
+        i = end;
+      } else { out += String.fromCharCode(parseInt(body.substr(i+1,4),16)); i += 4; }
+    }
+    else if (/[0-7]/.test(e)){
+      var oct = e;
+      while (oct.length < 3 && /[0-7]/.test(body[i+1] || '')) oct += body[++i];
+      out += String.fromCharCode(parseInt(oct, 8));
+    }
+    else if (e === '\n'){ /* line continuation */ }
+    else out += e;
+  }
+  return out;
+}
+
+function quote(value, preferred){
+  var q = preferred || "'";
+  if (value.indexOf(q) !== -1 && value.indexOf(q === "'" ? '"' : "'") === -1) q = (q === "'" ? '"' : "'");
+  var out = q;
+  for (var i = 0; i < value.length; i++){
+    var c = value[i], code = value.charCodeAt(i);
+    if (c === '\\' || c === q) out += '\\' + c;
+    else if (c === '\n') out += '\\n';
+    else if (c === '\r') out += '\\r';
+    else if (c === '\t') out += '\\t';
+    else if (code < 0x20 || code === 0x7f){
+      var h = code.toString(16); if (h.length < 2) h = '0' + h;
+      out += '\\x' + h;
+    }
+    else out += c;
+  }
+  return out + q;
+}
+
+/* ------------------------------------------------------------------ *
+ * Stage 1: unpack eval(function(p,a,c,k,e,d){...}(...)) - Dean Edwards packer
+ * ------------------------------------------------------------------ */
+var PACKER_SIG = /^\s*function\s*\(\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*,\s*\w+\s*(?:,\s*\w+\s*)?\)/;
+
+function findEvalCall(src){
+  var toks = tokenize(src), pos = 0;
+  for (var a = 0; a < toks.length; a++){ toks[a].start = pos; pos += toks[a].value.length; toks[a].end = pos; }
+  for (var i = 0; i < toks.length; i++){
+    if (toks[i].type !== 'name' || toks[i].value !== 'eval') continue;
+    var j = i + 1;
+    while (toks[j] && toks[j].type === 'ws') j++;
+    if (!toks[j] || toks[j].value !== '(') continue;
+    var open = j, depth = 0;
+    for (var k = open; k < toks.length; k++){
+      var v = toks[k].type === 'punct' ? toks[k].value : '';
+      if (v === '(') depth++;
+      else if (v === ')'){
+        depth--;
+        if (depth === 0){
+          return { callStart: toks[i].start, callEnd: toks[k].end,
+                   argStart: toks[open].end, argEnd: toks[k].start };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function unpackOnce(src){
+  var hit = findEvalCall(src);
+  if (!hit) return null;
+  var arg = src.slice(hit.argStart, hit.argEnd);
+  if (!PACKER_SIG.test(arg)) return null;        /* only evaluate known packer shapes */
+  var result;
+  try {
+    result = new Function('return (' + arg + ')')();
+  } catch (e){
+    throw new Error('unpacking failed: ' + e.message);
+  }
+  if (typeof result !== 'string') return null;
+  return src.slice(0, hit.callStart) + result + src.slice(hit.callEnd);
+}
+
+function unpackAll(src, maxRounds){
+  var rounds = 0;
+  for (var i = 0; i < (maxRounds || 12); i++){
+    var next = unpackOnce(src);
+    if (next === null) break;
+    src = next; rounds++;
+  }
+  return { code: src, rounds: rounds };
+}
+
+/* ------------------------------------------------------------------ *
+ * Stage 2: String.fromCharCode(...) folding
+ * ------------------------------------------------------------------ */
+function foldFromCharCode(src){
+  var re = /(?:String\s*\.\s*)?fromCharCode\s*\(\s*((?:0[xX][0-9a-fA-F]+|\d+)(?:\s*,\s*(?:0[xX][0-9a-fA-F]+|\d+))*)\s*\)/g;
+  var count = 0;
+  var out = src.replace(re, function(all, list){
+    try {
+      var chars = list.split(',').map(function(s){
+        s = s.trim();
+        return String.fromCharCode(/^0[xX]/.test(s) ? parseInt(s,16) : parseInt(s,10));
+      }).join('');
+      count++;
+      return quote(chars);
+    } catch (e){ return all; }
+  });
+  return { code: out, count: count };
+}
+
+/* ------------------------------------------------------------------ *
+ * Stage 3: token-level transforms
+ * ------------------------------------------------------------------ */
+function sig(toks, i, dir){
+  i += dir;
+  while (toks[i] && (toks[i].type === 'ws' || toks[i].type === 'comment')) i += dir;
+  return toks[i] ? i : -1;
+}
+
+function decodeEscapes(toks){
+  var count = 0;
+  for (var i = 0; i < toks.length; i++){
+    if (toks[i].type !== 'str') continue;
+    if (!/\\(x|u|[0-7])/.test(toks[i].value)) continue;
+    var val = parseStringLiteral(toks[i].value);
+    if (/[\u0000-\u0008\u000e-\u001f]/.test(val)) continue;   /* leave binary blobs alone */
+    toks[i].value = quote(val, toks[i].value[0]);
+    count++;
+  }
+  return count;
+}
+
+function foldConcat(toks){
+  var count = 0, changed = true;
+  while (changed){
+    changed = false;
+    for (var i = 0; i < toks.length; i++){
+      if (toks[i].type !== 'str') continue;
+      var p = sig(toks, i, 1);
+      if (p < 0 || toks[p].type !== 'punct' || toks[p].value !== '+') continue;
+      var q = sig(toks, p, 1);
+      if (q < 0 || toks[q].type !== 'str') continue;
+      var merged = parseStringLiteral(toks[i].value) + parseStringLiteral(toks[q].value);
+      toks[i].value = quote(merged, toks[i].value[0]);
+      toks.splice(i + 1, q - i);
+      count++; changed = true;
+    }
+  }
+  return count;
+}
+
+var RESERVED_DOT = new Set(['class','delete','new','function','var','return','if','else','for',
+'while','do','switch','case','default','break','continue','typeof','instanceof','in','void',
+'this','null','true','false','try','catch','finally','throw','with','const','let','import',
+'export','super','yield','await','enum','extends']);
+
+function bracketToDot(toks){
+  var count = 0;
+  for (var i = 0; i < toks.length; i++){
+    if (!(toks[i].type === 'punct' && toks[i].value === '[')) continue;
+    var before = sig(toks, i, -1);
+    if (before < 0) continue;
+    var b = toks[before];
+    var memberish = (b.type === 'name' && !RESERVED_DOT.has(b.value)) ||
+                    (b.type === 'punct' && (b.value === ')' || b.value === ']')) ||
+                    b.type === 'str' || b.type === 'template';
+    if (!memberish) continue;
+    var s = sig(toks, i, 1);
+    if (s < 0 || toks[s].type !== 'str') continue;
+    var e = sig(toks, s, 1);
+    if (e < 0 || toks[e].value !== ']') continue;
+    var name = parseStringLiteral(toks[s].value);
+    if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(name) || RESERVED_DOT.has(name)) continue;
+    toks.splice(i, e - i + 1, {type:'punct', value:'.'}, {type:'name', value:name});
+    count++;
+  }
+  return count;
+}
+
+/* ------------------------------------------------------------------ *
+ * Stage 4: beautifier
+ * ------------------------------------------------------------------ */
+var CTRL_KEYWORDS = new Set(['if','for','while','switch','catch','return','typeof','delete',
+'void','new','in','of','do','else','case','throw','await','yield','instanceof']);
+
+function beautify(toks, indentStr){
+  var out = [], line = '', indent = 0, lineIndent = 0, started = false,
+      suppress = false, stack = [{ch:'', tern:0}];
+
+  function top(){ return stack[stack.length-1]; }
+  function repeat(s, n){ var r = ''; for (var i = 0; i < n; i++) r += s; return r; }
+  function newline(){
+    if (started && line.trim() !== '') out.push(repeat(indentStr, lineIndent) + line.trim());
+    line = ''; started = false; suppress = false;
+  }
+  function add(text, wantSpace){
+    if (!started){ lineIndent = Math.max(0, indent); started = true; }
+    else if (wantSpace && !suppress && !/\s$/.test(line)) line += ' ';
+    line += text;
+    suppress = false;
+  }
+  function blank(){ if (out.length && out[out.length-1] !== '') out.push(''); }
+
+  var s = toks.filter(function(t){ return t.type !== 'ws'; });
+
+  /* index of the bracket matching the one at position i */
+  function matchAt(i){
+    var open = s[i].value, close = open === '[' ? ']' : (open === '(' ? ')' : '}'), depth = 0;
+    for (var k = i; k < s.length; k++){
+      if (s[k].type !== 'punct') continue;
+      if (s[k].value === open) depth++;
+      else if (s[k].value === close){ depth--; if (!depth) return k; }
+    }
+    return -1;
+  }
+  /* an array literal is only split across lines when it is long and has items */
+  function arrayIsMultiline(i){
+    var end = matchAt(i);
+    if (end < 0) return false;
+    var len = 0, depth = 0, comma = false;
+    for (var k = i + 1; k < end; k++){
+      len += s[k].value.length + 1;
+      if (s[k].type !== 'punct') continue;
+      if ('([{'.indexOf(s[k].value) !== -1) depth++;
+      else if (')]}'.indexOf(s[k].value) !== -1) depth--;
+      else if (s[k].value === ',' && depth === 0) comma = true;
+    }
+    return comma && len > 72;
+  }
+
+  for (var i = 0; i < s.length; i++){
+    var t = s[i], next = s[i+1], prev = s[i-1];
+
+    if (t.type === 'comment'){
+      if (t.line){ add(t.value, true); newline(); }
+      else {
+        newline();
+        t.value.split('\n').forEach(function(l, idx){
+          add(idx ? ' ' + l.trim() : l.trim(), false); newline();
+        });
+      }
+      continue;
+    }
+
+    if (t.type !== 'punct'){ add(t.value, true); continue; }
+
+    switch (t.value){
+      case '{': {
+        if (next && next.type === 'punct' && next.value === '}'){ add('{}', true); i++; break; }
+        add('{', true); stack.push({ch:'{', tern:0}); indent++; newline(); break;
+      }
+      case '}': {
+        indent--; newline(); add('}', false);
+        if (stack.length > 1) stack.pop();
+        var nv = next && next.type === 'punct' ? next.value : null;
+        var nk = next && next.type === 'name' ? next.value : null;
+        if (nv && [')',']',',',';','.','?',':'].indexOf(nv) !== -1) break;
+        if (nk && ['else','catch','finally','while'].indexOf(nk) !== -1) break;
+        newline();
+        if (nk === 'function' || nk === 'class') blank();
+        break;
+      }
+      case '(': {
+        var needSp = !!(prev && prev.type === 'name' && CTRL_KEYWORDS.has(prev.value));
+        add('(', needSp); stack.push({ch:'(', tern:0}); suppress = true; break;
+      }
+      case ')': add(')', false); if (stack.length > 1) stack.pop(); break;
+      case '[': {
+        var memberish = !!(prev && ((prev.type === 'name' && !CTRL_KEYWORDS.has(prev.value)) ||
+                        (prev.type === 'punct' && (prev.value === ')' || prev.value === ']')) ||
+                        prev.type === 'str'));
+        var multi = arrayIsMultiline(i);
+        add('[', !memberish); stack.push({ch:'[', tern:0, multi:multi}); suppress = true;
+        if (multi){ indent++; newline(); }
+        break;
+      }
+      case ']': {
+        if (top().multi){ indent--; newline(); }
+        add(']', false);
+        if (stack.length > 1) stack.pop();
+        break;
+      }
+      case ';': {
+        add(';', false);
+        if (top().ch === '(') line += ' ';
+        else {
+          newline();
+          if (next && next.type === 'name' && (next.value === 'function' || next.value === 'class')) blank();
+        }
+        break;
+      }
+      case ',': {
+        add(',', false);
+        if (top().ch === '{' || (top().ch === '[' && top().multi)) newline(); else line += ' ';
+        break;
+      }
+      case '?': add('?', true); top().tern++; line += ' '; suppress = true; break;
+      case ':': {
+        if (top().tern > 0){ top().tern--; add(':', true); } else add(':', false);
+        line += ' '; suppress = true; break;
+      }
+      case '.': case '?.': add(t.value, false); suppress = true; break;
+      case '!': case '~': add(t.value, true); suppress = true; break;
+      case '++': case '--': {
+        var postfix = !!(prev && (prev.type === 'name' || prev.type === 'num' ||
+                     (prev.type === 'punct' && (prev.value === ')' || prev.value === ']'))));
+        add(t.value, !postfix); if (!postfix) suppress = true; break;
+      }
+      case '+': case '-': {
+        var unary = !prev ||
+                    (prev.type === 'punct' && [')',']','}','++','--'].indexOf(prev.value) === -1) ||
+                    (prev.type === 'name' && PREFIX_KEYWORDS.has(prev.value));
+        add(t.value, true);
+        if (unary) suppress = true; else { line += ' '; suppress = true; }
+        break;
+      }
+      default:
+        add(t.value, true); line += ' '; suppress = true;
+    }
+  }
+  newline();
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]+$/gm, '');
+}
+
+function joinTokens(toks){
+  return toks.map(function(t){ return t.value; }).join('');
+}
+
+/* ------------------------------------------------------------------ *
+ * Pipeline
+ * ------------------------------------------------------------------ */
+function deobfuscate(src, opts){
+  opts = opts || {};
+  var log = [], code = src, c;
+
+  if (opts.unpack !== false){
+    var r = unpackAll(code);
+    code = r.code;
+    if (r.rounds) log.push('unpacked ' + r.rounds + ' eval layer' + (r.rounds > 1 ? 's' : ''));
+  }
+  if (opts.charCode !== false){
+    var f = foldFromCharCode(code);
+    code = f.code;
+    if (f.count) log.push('fromCharCode x' + f.count);
+  }
+
+  var toks = tokenize(code);
+  if (opts.escapes !== false){ c = decodeEscapes(toks); if (c) log.push('escapes x' + c); }
+  if (opts.concat  !== false){ c = foldConcat(toks);    if (c) log.push('concat folds x' + c); }
+  if (opts.dot     !== false){ c = bracketToDot(toks);  if (c) log.push('bracket-to-dot x' + c); }
+
+  var outCode = opts.beautify === false ? joinTokens(toks) : beautify(toks, opts.indent || '    ');
+  return { code: outCode, log: log };
+}
+//---CORE-END---
+
+/* ------------------------------------------------------------------ *
+ * Highlighter (reuses the tokenizer)
+ * ------------------------------------------------------------------ */
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function highlight(code){
+  var toks = tokenize(code), out = '';
+  for (var i = 0; i < toks.length; i++){
+    var t = toks[i], v = esc(t.value), cls = null;
+    if (t.type === 'ws'){ out += v; continue; }
+    if (t.type === 'comment') cls = 'com';
+    else if (t.type === 'str' || t.type === 'template') cls = 'str';
+    else if (t.type === 'num') cls = 'num';
+    else if (t.type === 'regex') cls = 're';
+    else if (t.type === 'name'){
+      if (KEYWORDS.has(t.value)) cls = 'kw';
+      else {
+        var j = i + 1; while (toks[j] && toks[j].type === 'ws') j++;
+        if (toks[j] && toks[j].value === '(') cls = 'fn';
+      }
+    } else cls = 'op';
+    out += cls ? '<span class="' + cls + '">' + v + '</span>' : v;
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------------ *
+ * UI
+ * ------------------------------------------------------------------ */
+var SAMPLE = [
+"eval(function(p, a, c, k, e, d) {",
+"    e = function(c) {",
+"        return c.toString(36)",
+"    };",
+"    if (!''.replace(/^/, String)) {",
+"        while (c--) {",
+"            d[c.toString(a)] = k[c] || c.toString(a)",
+"        }",
+"        k = [function(e) {",
+"            return d[e]",
+"        }];",
+"        e = function() {",
+"            return '\\\\w+'",
+"        };",
+"        c = 1",
+"    };",
+"    while (c--) {",
+"        if (k[c]) {",
+"            p = p.replace(new RegExp('\\\\b' + e(c) + '\\\\b', 'g'), k[c])",
+"        }",
+"    }",
+"    return p",
+"}('1 i(4){h 8={\"4\":4};$.9({a:\"7\",5:\"6\",g:8,b:\\'/d/e/n\\',c:1(0){3.2(0)},f:1(0){3.2(0)}})}" +
+"1 j(){$.9({a:\"7\",5:\"6\",b:\\'/d/e/k/l/m\\',c:1(0){3.2(0)},f:1(0){3.2(0)}})}', 24, 24, " +
+"'response|function|log|console|code|dataType|json|POST|formData|ajax|type|url|success|api/v1|" +
+"invite|error|data|var|verifyInviteCode|makeInviteCode|how|to|generate|verify'.split('|'), 0, {}))"
+].join('\n');
+
+var $ = function(id){ return document.getElementById(id); };
+var input = $('input'), output = $('output').firstElementChild, statusEl = $('status');
+
+function opts(){
+  var ind = $('optIndent').value;
+  return {
+    unpack:   $('optPack').checked,
+    escapes:  $('optEsc').checked,
+    charCode: $('optCharCode').checked,
+    concat:   $('optConcat').checked,
+    dot:      $('optDot').checked,
+    beautify: $('optBeautify').checked,
+    indent:   ind === 'tab' ? '\t' : (ind === '2' ? '  ' : '    ')
+  };
+}
+
+function setStatus(msg, kind){ statusEl.textContent = msg; statusEl.className = kind || ''; }
+
+function run(){
+  var src = input.value;
+  $('inStats').textContent = src.length + ' chars';
+  if (!src.trim()){
+    output.innerHTML = ''; output.dataset.raw = '';
+    $('outStats').textContent = ''; setStatus('Nothing to do.'); return;
+  }
+  var t0 = performance.now();
+  try {
+    var res = deobfuscate(src, opts());
+    output.innerHTML = $('optHl').checked ? highlight(res.code) : esc(res.code);
+    output.dataset.raw = res.code;
+    $('outStats').textContent = res.code.split('\n').length + ' lines / ' + res.code.length + ' chars';
+    var ms = (performance.now() - t0).toFixed(1);
+    setStatus('Done in ' + ms + ' ms' +
+      (res.log.length ? ' - ' + res.log.join(', ')
+                      : ' - no obfuscation patterns matched, formatted only'), 'ok');
+  } catch (e){
+    setStatus('Error: ' + e.message, 'err');
+  }
+}
+
+$('btnRun').onclick = run;
+$('btnSample').onclick = function(){ input.value = SAMPLE; run(); };
+$('btnClear').onclick = function(){
+  input.value = ''; output.innerHTML = ''; output.dataset.raw = '';
+  $('inStats').textContent = ''; $('outStats').textContent = ''; setStatus('Ready.');
+};
+$('btnOpen').onclick = function(){ $('file').click(); };
+$('file').onchange = function(e){
+  var f = e.target.files[0]; if (!f) return;
+  var fr = new FileReader();
+  fr.onload = function(){ input.value = fr.result; run(); };
+  fr.readAsText(f);
+};
+$('btnCopy').onclick = function(){
+  var txt = output.dataset.raw || '';
+  if (!navigator.clipboard){ setStatus('Clipboard API unavailable - select the text manually.', 'err'); return; }
+  navigator.clipboard.writeText(txt).then(
+    function(){ setStatus('Copied ' + txt.length + ' chars.', 'ok'); },
+    function(){ setStatus('Clipboard blocked by the browser - select the text manually.', 'err'); });
+};
+$('btnSave').onclick = function(){
+  var blob = new Blob([output.dataset.raw || ''], {type:'text/javascript'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'deobfuscated.js';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+};
+input.addEventListener('keydown', function(e){
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); run(); }
+});
+['optPack','optEsc','optCharCode','optConcat','optDot','optBeautify','optIndent','optHl']
+  .forEach(function(id){ $(id).addEventListener('change', function(){ if (input.value.trim()) run(); }); });
+
+/* ---- optional custom icon: first file that loads wins, also becomes the favicon ---- *
+ * Drop an image named icon.png (or .jpg/.jpeg/.webp/.svg, or duck.png) beside this
+ * HTML file. If none is found the gradient "{}" mark stays.                           */
+(function(){
+  var EMBEDDED = 'data:image/png;base64,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';
+  var candidates = ['icon.png','icon.jpg','icon.jpeg','icon.webp','duck.png','icon.svg'],
+      i = 0, img = $('logo'), mark = $('mark'), fav = $('favicon');
+  function next(){ img.src = (i < candidates.length) ? candidates[i++] : EMBEDDED; }
+  img.addEventListener('load', function(){
+    if (!img.naturalWidth) return next();
+    mark.classList.add('has-img');
+    mark.title = 'Your icon - drag another image here to replace, Alt+click to reset';
+    if (fav) fav.href = img.src;
+  });
+  img.addEventListener('error', next);
+
+  /* a previously dropped icon wins over files on disk */
+  var stored = null;
+  try { stored = localStorage.getItem('jsdeob.icon'); } catch (e){}
+  if (stored) img.src = stored; else next();
+
+  /* drag an image onto the badge to set it */
+  ['dragenter','dragover'].forEach(function(ev){
+    mark.addEventListener(ev, function(e){ e.preventDefault(); mark.style.opacity = '.65'; });
+  });
+  ['dragleave','drop'].forEach(function(ev){
+    mark.addEventListener(ev, function(){ mark.style.opacity = ''; });
+  });
+  mark.addEventListener('drop', function(e){
+    e.preventDefault();
+    var f = e.dataTransfer && e.dataTransfer.files[0];
+    if (!f || !/^image\//.test(f.type)) return;
+    var fr = new FileReader();
+    fr.onload = function(){
+      img.src = fr.result;
+      try { localStorage.setItem('jsdeob.icon', fr.result); }
+      catch (err){
+        setStatus('Icon set for this session only - ' +
+          (/quota/i.test(err.name || '') ? 'image too large to store.'
+                                         : 'browser storage unavailable. Save it as icon.png instead.'), 'ok');
+      }
+    };
+    fr.readAsDataURL(f);
+  });
+  mark.addEventListener('click', function(e){
+    if (!e.altKey) return;
+    try { localStorage.removeItem('jsdeob.icon'); } catch (err){}
+    mark.classList.remove('has-img');
+    i = 0; next();
+  });
+})();
+
+/* ---- resizable split: growing one pane shrinks the other ---- */
+(function(){
+  var main = document.querySelector('main'), split = $('split'),
+      paneIn = $('paneIn'), paneOut = $('paneOut'), fraction = 0.5;
+
+  function isVertical(){ return window.matchMedia('(max-width:900px)').matches; }
+  function apply(f){
+    fraction = Math.min(0.9, Math.max(0.1, f));
+    paneIn.style.flex  = fraction + ' 1 0';
+    paneOut.style.flex = (1 - fraction) + ' 1 0';
+    try { localStorage.setItem('jsdeob.split', String(fraction)); } catch (e){}
+  }
+
+  try {
+    var saved = parseFloat(localStorage.getItem('jsdeob.split'));
+    if (saved > 0 && saved < 1) fraction = saved;
+  } catch (e){}
+  apply(fraction);
+
+  var dragging = false;
+
+  split.addEventListener('pointerdown', function(e){
+    e.preventDefault();
+    dragging = true;
+    try { split.setPointerCapture(e.pointerId); } catch (err){}
+    document.body.classList.add('dragging');
+    if (isVertical()) document.body.classList.add('vert');
+  });
+  function move(e){
+    if (!dragging) return;
+    var r = main.getBoundingClientRect();
+    apply(isVertical() ? (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width);
+  }
+  function end(){
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('dragging', 'vert');
+  }
+  split.addEventListener('pointermove', move);
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+  split.addEventListener('dblclick', function(){ apply(0.5); });
+
+  /* keyboard nudge for accessibility */
+  split.tabIndex = 0;
+  split.addEventListener('keydown', function(e){
+    var back = isVertical() ? 'ArrowUp' : 'ArrowLeft', fwd = isVertical() ? 'ArrowDown' : 'ArrowRight';
+    if (e.key === back){ apply(fraction - 0.05); e.preventDefault(); }
+    else if (e.key === fwd){ apply(fraction + 0.05); e.preventDefault(); }
+  });
+})();
+
+setStatus('Ready. Paste code and press Ctrl+Enter, or click "Load sample".');
+</script>
+</body>
+</html>
