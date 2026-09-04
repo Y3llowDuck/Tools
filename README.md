@@ -1,7 +1,5 @@
 # Tools
 
-![Logo](assets/duck-128.png)
-
 Small tools I wrote while doing offensive security work, kept in one place. Each one solves a problem I hit often enough to stop solving it by hand: setting up access, checking what a network will let out, dropping a shell, generating payloads, reading code someone did not want read.
 
 Each folder is self-contained and has its own README and its own license. Nothing here needs installing or building — they are single scripts and single files, in whatever language suited the job.
