@@ -46,13 +46,43 @@ cp scope.example.yaml scope.yaml
 plugins. Then edit `scope.yaml` with your **authorized** targets. Later sessions
 just need `source .venv/bin/activate` first; `.venv/` is gitignored.
 
-Install the external Kali tools you intend to use (`nmap`, `curl`,
-`feroxbuster`, `httpx-toolkit`, `nuclei`, `exploitdb`). A plugin whose binary is
-missing is simply not offered — no code change needed.
-
 Every command below is run as `python agent.py <subcommand>` from the repo
 root, with the virtualenv activated. If you prefer a shorter prefix, define
 your own alias, for example `alias sca='python agent.py'`.
+
+## Prerequisites
+
+**Required:** Python 3 and the pip dependencies above (`PyYAML`; plus
+`anthropic` only if you use `assess`). That's all the core CLI needs.
+
+**Optional — the scanners.** Each capability is powered by an external Kali
+tool. Install only the ones you want; **none of them are hard dependencies.**
+
+| Tool | Install on Kali | Powers (capability) |
+|---|---|---|
+| `nmap` | `apt install nmap` | `network_discovery`, `service_detection` |
+| `curl` | `apt install curl` | `http_request` |
+| `feroxbuster` | `apt install feroxbuster` | `web_content_discovery` |
+| `httpx-toolkit` | `apt install httpx-toolkit` | `http_probe`, `tech_fingerprint` |
+| `nuclei` | ProjectDiscovery (`apt install nuclei`) | `vuln_signature_scan` |
+| `exploitdb` / `searchsploit` | `apt install exploitdb` | `exploit_mapping` |
+
+**It will not break if a tool is missing.** At runtime the agent probes each
+plugin's binary with `shutil.which()`. A tool that isn't on `PATH` is simply
+withheld — it never crashes the tool:
+
+- It shows as `missing` in `python agent.py plugin list` (installed ones show `ok`).
+- Its capability is hidden from `capability list` **and** from the AI reasoning
+  loop, so `assess` never requests a scanner you don't have.
+- An explicit `capability run` against a missing tool exits cleanly with
+  `No plugin for capability '<name>'.` — a message, not a traceback.
+
+So if, say, `nuclei` isn't installed, everything else works exactly as before;
+you just don't get `vuln_signature_scan`. Check what's available any time:
+
+```bash
+python agent.py plugin list
+```
 
 ## Updating scanner feeds
 
