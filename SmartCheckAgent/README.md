@@ -31,173 +31,54 @@ traditional scanner runs the same ports, payloads, and signatures every time
 regardless of what it finds; this agent loops — run a capability, look at the
 result, form a hypothesis, decide the next test, repeat.
 
-## Quick start (Docker, the fast path)
-
-If you only read one section, read this one.
-
-```bash
-# 1. Log in to the image registry (ask the repo owner for a read:packages PAT)
-echo "$GITHUB_PAT" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
-
-# 2. Pull and tag the image
-docker pull ghcr.io/y3llowduck/smartcheckagent:latest
-docker tag ghcr.io/y3llowduck/smartcheckagent:latest smartcheckagent:latest
-
-# 3. Set up a working directory for this engagement
-mkdir ~/engagements/client-x && cd ~/engagements/client-x
-cp /path/to/scope.example.yaml scope.yaml      # then edit with AUTHORIZED targets
-mkdir -p data
-
-# 4. Fix data/ ownership (one-time per directory — see "Why this step" below)
-docker run --rm -v "$PWD/data:/data" --user root --entrypoint sh smartcheckagent:latest -c "chown -R 999:999 /data"
-
-# 5. Add the `sca` shortcut to your shell
-cat >> ~/.zshrc <<'EOF'
-sca() { docker run --rm -it --cap-drop=ALL --cap-add=NET_RAW --cap-add=NET_BIND_SERVICE --security-opt no-new-privileges -v "$PWD/scope.yaml":/app/scope.yaml:ro -v "$PWD/data":/app/data -e ANTHROPIC_API_KEY smartcheckagent:latest "$@"; }
-EOF
-source ~/.zshrc
-
-# 6. Initialize, verify scope, and go
-export ANTHROPIC_API_KEY=sk-ant-...
-sca init
-sca scope show
-sca assess 192.168.1.50 --model <model-id> --objective "Find and validate web vulnerabilities"
-```
-
-That's the whole path from zero to a running assessment. Everything below
-explains *why* each step exists, plus the from-source alternative, the full
-command reference, and troubleshooting.
-
-## Two ways to run it
-
-| | Docker (recommended) | From source |
-|---|---|---|
-| Kali tools bundled | ✅ nmap, httpx, searchsploit, curl in the image | ❌ you install them |
-| Isolation | ✅ runs as a non-root user in a container | ❌ runs on your host |
-| Best for | quick, reproducible runs | development / modifying the code |
-
-### Option A — Docker, step by step
-
-**1. Get the image.** The published image is **private** — log in to GitHub
-Container Registry first with a Personal Access Token that has
-`read:packages` (ask the repo owner to grant you read access to the
-package — package page:
-https://github.com/users/Y3llowDuck/packages/container/package/smartcheckagent):
-
-```bash
-echo "$GITHUB_PAT" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
-docker pull ghcr.io/y3llowduck/smartcheckagent:latest
-docker tag ghcr.io/y3llowduck/smartcheckagent:latest smartcheckagent:latest
-```
-
-...or build it yourself from the `Dockerfile` in this repo:
-
-```bash
-docker build -t smartcheckagent:latest .
-```
-
-The build is multi-stage: it compiles `agent.py` into a single-file binary
-with PyInstaller, then assembles a slim Kali runtime containing `nmap`,
-`httpx-toolkit`, `exploitdb`/`searchsploit`, `curl`, and `ca-certificates`.
-`nmap` is granted raw-socket capability via `setcap`; the agent runs as the
-unprivileged `scagent` user (UID 999); `scope.yaml` and `data/` are the only
-things that cross the container boundary, and only at run time.
-
-**2. Set up a working directory for the engagement:**
-
-```bash
-mkdir ~/engagements/client-x && cd ~/engagements/client-x
-cp /path/to/scope.example.yaml scope.yaml   # then edit with AUTHORIZED targets
-mkdir -p data
-```
-
-**3. Fix `data/` ownership** (one-time per directory):
-
-```bash
-docker run --rm -v "$PWD/data:/data" --user root --entrypoint sh smartcheckagent:latest -c "chown -R 999:999 /data"
-```
-
-<details>
-<summary>Why this step exists</summary>
-
-The container runs as `scagent` (UID 999). Docker creates bind-mounted
-directories owned by `root` by default, so without this step the first write
-to SQLite fails with
-`sqlite3.OperationalError: attempt to write a readonly database`. Running
-the `chown` through a throwaway container (as above) avoids needing `sudo`
-on the host.
-</details>
-
-**4. Add the `sca` shell function**, so you don't retype the security flags
-and mount paths on every command:
-
-```bash
-cat >> ~/.zshrc <<'EOF'
-sca() { docker run --rm -it --cap-drop=ALL --cap-add=NET_RAW --cap-add=NET_BIND_SERVICE --security-opt no-new-privileges -v "$PWD/scope.yaml":/app/scope.yaml:ro -v "$PWD/data":/app/data -e ANTHROPIC_API_KEY smartcheckagent:latest "$@"; }
-EOF
-source ~/.zshrc
-```
-
-<details>
-<summary>What each flag is doing</summary>
-
-`--cap-drop=ALL` then re-adding only `NET_RAW`/`NET_BIND_SERVICE` is the CIS
-Docker Benchmark pattern — least privilege instead of a fully capable
-container. `NET_RAW` here works together with the `setcap` grant baked into
-the image: the file capability on the `nmap` binary only takes effect when
-`NET_RAW` is also in the container's bounding set, otherwise nmap silently
-falls back to a connect scan. `--security-opt no-new-privileges` blocks
-privilege escalation. The image already sets default internal paths for
-`scope.yaml`/`data`/generated plugins, so no extra `SMARTCHECK_*` env vars
-are needed here — only pass them if you're overriding the defaults.
-</details>
-
-**5. Initialize and run:**
-
-```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-sca init                     # once per data/ directory — creates the SQLite schema
-sca scope show
-sca assess 192.168.1.50 --model <model-id> --objective "Find and validate web vulnerabilities" --max-steps 40
-```
-
-The command reference below uses `sca` as shorthand (same as `smartcheck`
-would be for a self-built image tagged differently).
-
-<details>
-<summary>Optional extra hardening for a locked-down host</summary>
-
-```bash
-docker run --rm -it --read-only --tmpfs /tmp --memory=2g --cpus=2 --pids-limit=512 --cap-drop=ALL --cap-add=NET_RAW --cap-add=NET_BIND_SERVICE --security-opt no-new-privileges -v "$PWD/scope.yaml:/app/scope.yaml:ro" -v "$PWD/data:/app/data" -e ANTHROPIC_API_KEY smartcheckagent:latest "$@"
-```
-
-Test `--read-only` against the capabilities you actually use first — some
-tools write temp files outside `/tmp` under certain modes, and `--tmpfs /tmp`
-only covers `/tmp`.
-</details>
-
-The container needs to reach your in-scope targets. The default bridge
-network is usually fine; for lab targets on the host or an isolated segment
-you may want `--network host` (Linux) — use it deliberately and only for
-scopes you control. Scanning third-party targets from a cloud instance (e.g.
-AWS EC2) can trip abuse detection — review the provider's penetration-testing
-policy before any external engagement from there.
-
-### Option B — From source
+## Install
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate              # or: .venv/bin/python agent.py ...
-pip install -r requirements.txt        # PyYAML (anthropic for `assess`)
-
-python agent.py init                   # create data dir, DB, seed plugins
-cp scope.example.yaml scope.yaml       # then edit with AUTHORIZED targets
+source .venv/bin/activate
+pip install -r requirements.txt
+python agent.py init
+cp scope.example.yaml scope.yaml
 ```
 
+`pip install -r requirements.txt` pulls PyYAML (and `anthropic`, needed only for
+`assess`). `python agent.py init` creates the data dir, SQLite schema, and seeds
+plugins. Then edit `scope.yaml` with your **authorized** targets. Later sessions
+just need `source .venv/bin/activate` first; `.venv/` is gitignored.
+
 Install the external Kali tools you intend to use (`nmap`, `curl`,
-`feroxbuster`, `httpx-toolkit`, `nuclei`, `exploitdb`). A plugin whose binary
-is missing is simply not offered — no code change needed. Later sessions just
-need `source .venv/bin/activate` first; `.venv/` is gitignored.
+`feroxbuster`, `httpx-toolkit`, `nuclei`, `exploitdb`). A plugin whose binary is
+missing is simply not offered — no code change needed.
+
+Optional — a short alias so commands stay readable (the rest of this README
+uses `sca`):
+
+```bash
+alias sca='python agent.py'
+```
+
+Without the alias, replace `sca` with `python agent.py` in every command below.
+
+## Updating scanner feeds
+
+Nuclei's templates and searchsploit's exploit database are what make those
+scanners detect *recent* vulnerabilities — refresh them before an engagement.
+A helper script updates both and skips anything it can't (missing tool / no
+root), reporting as it goes:
+
+```bash
+./scripts/update-feeds.sh
+```
+
+Or update each one by hand:
+
+```bash
+nuclei -update-templates
+sudo searchsploit -u
+```
+
+Run the script on a schedule (cron / systemd timer) to keep feeds current
+between engagements.
 
 ## Configuring `scope.yaml`
 
@@ -237,6 +118,7 @@ both with your real sign-off before running `report`.
 3. **Or let the model drive it** (needs `ANTHROPIC_API_KEY` and `--model`):
 
    ```bash
+   export ANTHROPIC_API_KEY=sk-ant-...
    sca assess 192.168.56.10 --model <model-id> --objective "Find and validate web vulns" --max-steps 40
    ```
 
@@ -250,10 +132,31 @@ both with your real sign-off before running `report`.
 4. **Watch progress, then report:**
 
    ```bash
-   sca status      # live progress bar + counts
-   sca summary     # consolidated text findings
-   sca report --out /app/data/report.html   # -> lands at ./data/report.html on the host
+   sca status
+   sca summary
+   sca report --out data/report.html
    ```
+
+### Running a single scanner
+
+You don't have to let the model drive — any capability can be run on its own.
+For example, to run **only nuclei** against an in-scope target:
+
+```bash
+sca capability run vuln_signature_scan http://192.168.56.10:8080/
+```
+
+Other single-scanner runs:
+
+```bash
+sca capability run network_discovery 192.168.56.10 -p ports=22,80,443
+sca capability run web_content_discovery http://192.168.56.10:8080/
+sca capability run tech_fingerprint http://192.168.56.10:8080/
+sca capability run exploit_mapping 192.168.56.10 -p query="vsftpd 2.3.4"
+```
+
+Add `--dry-run` to any `capability run` to see the exact argv it would execute
+without touching the target.
 
 ### Choosing a model
 
@@ -266,7 +169,11 @@ instead of guessing.
 
 ```bash
 sca assess 192.168.56.10 --model <model-id>
-# or, once per shell session:
+```
+
+Or set it once per shell session:
+
+```bash
 export SMARTCHECK_MODEL=<model-id>
 sca assess 192.168.56.10
 ```
@@ -294,31 +201,43 @@ for verification independent of the normalized findings:
 # Scope
 sca scope show
 sca scope check <target> [--port N]
+```
 
+```bash
 # Runs
 sca run new --name "clientX engagement"
 sca run list
+```
 
+```bash
 # Onboard a new Kali tool as a plugin (the model drafts a declarative
 # adapter, never executable code — you approve it before it's used)
-sca plugin add ffuf --model <model-id>      # inspect → draft → approve
+sca plugin add ffuf --model <model-id>
 sca plugin add ffuf --model <model-id> --test-target http://192.168.56.10/ --yes
-sca plugin remove ffuf                           # remove an onboarded plugin
+sca plugin remove ffuf
+```
 
+```bash
 # Capabilities (deterministic scope gate + safety ceiling)
 sca capability list
 sca capability run <capability> <target> [-p key=value ...] [--dry-run]
+```
 
+```bash
 # AI-driven assessment — needs ANTHROPIC_API_KEY and --model/$SMARTCHECK_MODEL
 sca assess [target] --model <id> --objective "..." --max-steps 40 --max-safety active
+```
 
+```bash
 # Progress & results
 sca status
 sca summary
-sca report [--run N] [--out /path/report.html]
+sca report [--run N] [--out data/report.html]
+```
 
+```bash
 # Safety — kill switch
-sca kill engage     # halt all execution immediately
+sca kill engage
 sca kill release
 ```
 
@@ -341,7 +260,8 @@ ceiling (default `active`; shells / `dangerous` are never auto-run).
 unrelated Python CLI — the plugin detects and refuses it). Install:
 `apt install httpx-toolkit`.
 ² Install nuclei from ProjectDiscovery. Its matches are **signatures →
-POSSIBLE findings only**, never auto-confirmed.
+POSSIBLE findings only**, never auto-confirmed. Keep its templates current with
+`nuclei -update-templates` (see [Updating scanner feeds](#updating-scanner-feeds)).
 ³ Offline (no target traffic). `target` names the in-scope asset; the
 product/version goes in `params.query`, e.g.
 `capability run exploit_mapping 192.168.56.10 -p query="vsftpd 2.3.4"`.
@@ -399,26 +319,25 @@ API keys, or session tokens.
 | Capability run refused / "out of scope" | Target IP, domain, or port isn't listed in `scope.yaml` | Add it under `targets`/`ports.allowed`, re-check with `scope check` |
 | `report` refuses to generate | `authorization.authorized_by` or `engagement` is blank or placeholder text | Fill in both by hand in `scope.yaml` |
 | Plugin shows `missing` in `plugin list` | The underlying Kali binary isn't installed | Install it (e.g. `apt install httpx-toolkit`; nuclei from ProjectDiscovery) |
+| nuclei runs but finds nothing recent | Templates are stale | `nuclei -update-templates`, or run `./scripts/update-feeds.sh` |
+| searchsploit misses recent exploits | exploitdb is stale | `sudo searchsploit -u`, or run `./scripts/update-feeds.sh` as root |
 | httpx plugin refuses to run | `/usr/bin/httpx` resolved to the unrelated Python CLI | Install `httpx-toolkit`; the plugin detects and rejects the wrong binary |
 | `assess`/`plugin add` fail with "No model specified" | Neither `--model` nor `$SMARTCHECK_MODEL` is set | Pass `--model <id>` or `export SMARTCHECK_MODEL=<id>` |
 | `assess` fails immediately / no model output | Missing or invalid `ANTHROPIC_API_KEY` | `export ANTHROPIC_API_KEY=sk-ant-...` |
 | Scan seems stuck or runaway | Rate limit/timeout/concurrency misconfigured, or a tool hanging | `sca kill engage` to halt immediately, then adjust `limits` in `scope.yaml` |
 | Resuming a run redoes recon | Ran a fresh `assess` instead of resuming | Pass `--run N` for the existing run to resume |
-| `sqlite3.OperationalError: attempt to write a readonly database` (Docker) | `data/` is owned by root, not UID 999 (`scagent`) | Run the one-time `chown -R 999:999` step from the Docker setup above |
-| `Scope file not found: /tmp/_MEIxxxxxx/scope.yaml` (self-built compiled image) | A custom Dockerfile without the baked-in `SMARTCHECK_SCOPE` default — the PyInstaller binary resolves paths relative to its own unpack temp dir | Add `ENV SMARTCHECK_SCOPE=/app/scope.yaml` (and `SMARTCHECK_DATA_DIR`/`SMARTCHECK_PLUGINS_DIR`) to the image, or pass them as `-e` flags at run time |
-| TLS/certificate errors calling the model API from inside the container | `ca-certificates` missing from a custom runtime stage | The published image already includes this; if building your own, add `ca-certificates` and run `update-ca-certificates` |
 
-## What never gets committed or baked in
+## What never gets committed
 
 `scope.yaml`, `data/` (DB, evidence, reports), and any API keys stay local.
-They're excluded by `.gitignore` / `.dockerignore` and mounted at run time —
-by design.
+They're excluded by `.gitignore` — by design.
 
 ## Layout
 
 ```
 agent.py                     entry point
 scope.example.yaml           scope template
+scripts/update-feeds.sh      refresh nuclei templates + exploitdb
 docs/screenshots/            README images
 smartcheck/
   config.py  scope.py  db.py  models.py  progress.py  executor.py  capabilities.py  normalize.py
@@ -431,12 +350,12 @@ data/        smartcheck.db, evidence/, reports/   (gitignored)
 ## Tests
 
 ```bash
-python tests/test_scope.py        # deterministic scope gate (deny-by-default)
-python tests/test_normalize.py    # observation -> knowledge-table normalization
-python tests/test_progress.py     # progress accounting (coverage + step blend)
-python tests/test_reasoning.py    # reasoning tool-use loop + validation discipline
-python tests/test_onboarding.py   # plugin auto-onboarding
-python tests/test_report.py       # HTML report generation
+python tests/test_scope.py
+python tests/test_normalize.py
+python tests/test_progress.py
+python tests/test_reasoning.py
+python tests/test_onboarding.py
+python tests/test_report.py
 ```
 
 ## Not yet built
