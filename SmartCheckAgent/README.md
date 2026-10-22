@@ -352,8 +352,3 @@ python tests/test_reasoning.py
 python tests/test_onboarding.py
 python tests/test_report.py
 ```
-
-## Not yet built
-
-An interactive reverse-shell driver (`reverse_shell_handler` / Penelope) and
-authenticated scans.

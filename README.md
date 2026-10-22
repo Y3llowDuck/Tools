@@ -15,6 +15,7 @@ Each folder is self-contained and has its own README and its own license. Nothin
 | [port_check](port_check/) | Checks which outbound ports a host can actually reach | Bash |
 | [port_check_PowerShell](port_check_PowerShell/) | The same outbound port check, for Windows hosts | PowerShell |
 | [oscp_exam-ai-tips](oscp_exam-ai-tips/) | Scrapes OSCP success stories from Reddit and extracts the recurring strategies | Python |
+| [SmartCheckAgent](SmartCheckAgent/) | AI-assisted pentest agent that drives Kali tools (nmap, nuclei, httpx, ...) against authorized targets and writes an HTML report | Python |
 
 ## About the relocation
 
@@ -33,6 +34,7 @@ They are not all the same, so each folder carries the license that applies to it
 | oscp_exam-ai-tips | GPL-3.0 |
 | port_check | No license specified |
 | port_check_PowerShell | No license specified |
+| SmartCheckAgent | No license specified |
 
 The MIT `LICENSE` at the root covers the repository itself — this README and the index page — not the tools inside it. Check the folder.
 
