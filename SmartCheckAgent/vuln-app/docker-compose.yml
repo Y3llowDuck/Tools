@@ -1,0 +1,10 @@
+services:
+  vuln-php:
+    build: .
+    image: smartcheck-vuln-php:8.3.0
+    container_name: smartcheck-vuln-php
+    # Bind to loopback only — this is an intentionally vulnerable banner and
+    # must never be reachable from outside the host.
+    ports:
+      - "127.0.0.1:8089:80"
+    restart: "no"

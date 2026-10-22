@@ -1,0 +1,47 @@
+# SmartCheckAgent scope definition
+# ---------------------------------
+# AUTHORIZED TARGETS ONLY. Copy this file to scope.yaml and edit it.
+# Deny-by-default: anything not listed here is out of scope and will be refused.
+#
+#   cp scope.example.yaml scope.yaml
+
+# Who authorized this engagement and when it expires (recorded in reports).
+# ENTER THESE MANUALLY. The agent must NEVER infer, guess, or auto-fill them.
+# The report refuses to generate while authorized_by or engagement is blank or
+# still the placeholder text below — replace both with your real sign-off.
+authorization:
+  authorized_by: "YOUR NAME / CLIENT CONTACT"
+  engagement: "Describe the engagement / rules of engagement reference"
+  expires: "2026-12-31"
+
+targets:
+  # Individual hosts.
+  ips:
+    - 10.129.227.148
+
+  # Whole networks in CIDR notation.
+  cidrs:
+    - 10.129.227.148/24
+
+  # Hostnames. See options.allow_subdomains below.
+  domains:
+    - localhost
+    # - target.lab
+
+  # Full URLs. A URL's explicit port is automatically added to allowed ports.
+  urls:
+    # - http://192.168.56.101:8080/app
+
+ports:
+  # Only these ports may be touched. Leave the list empty to allow ALL ports
+  # (still constrained to in-scope hosts).
+  allowed: [80, 443, 8000, 8080, 8443, 22]
+
+options:
+  # If true, a host like api.target.lab is in scope when target.lab is listed.
+  allow_subdomains: false
+
+limits:
+  requests_per_second: 5
+  request_timeout_seconds: 30
+  max_concurrency: 3

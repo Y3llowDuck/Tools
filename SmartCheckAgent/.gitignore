@@ -1,0 +1,10 @@
+# Runtime data, evidence, and local scope are never committed.
+data/
+scope.yaml
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.db
+*.db-wal
+*.db-shm

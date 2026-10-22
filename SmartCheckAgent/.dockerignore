@@ -1,0 +1,25 @@
+# Secrets & authorization — never bake these in
+scope.yaml
+.env
+*.key
+*.pem
+
+# Local runtime state (mounted at runtime instead)
+data/
+*.db
+
+# Python / virtualenv cruft
+.venv/
+__pycache__/
+*.pyc
+
+# Git & editor noise
+.git/
+.gitignore
+.idea/
+.vscode/
+*.swp
+
+# Docs/tests not needed at runtime (optional)
+tests/
+*.md

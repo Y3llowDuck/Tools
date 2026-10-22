@@ -1,0 +1,91 @@
+id: php2shell-detect
+
+info:
+  name: PHP php2shell session.upload_progress UAF (CVE-2026-109618, CVE-2026-109619)
+  author: smartcheck
+  severity: critical
+  description: |
+    Detection for the "php2shell" PHP RCEs (CVE-2026-109618 / CVE-2026-109619,
+    disclosed 2026-10-21, CVSS 9.2): a use-after-free in the rfc1867 file-upload
+    handler. The handler caches raw pointers into the session HashTable; a timed
+    stall between upload chunks (exceeding session.upload_progress.min_freq)
+    reinitializes the session, freeing the HashTable while the stale pointers are
+    still written through. Exploitability therefore requires
+    session.upload_progress to be ENABLED on an affected PHP version — the
+    version alone is not sufficient. This signature is non-destructive: it reads
+    the advertised PHP version and the session.upload_progress state from the
+    response and does NOT attempt the stalled-upload trigger (which would risk
+    crashing the worker). Signature only — validate before confirming.
+  classification:
+    cve-id: CVE-2026-109618,CVE-2026-109619
+    cwe-id: CWE-416
+    cvss-metrics: CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H
+    cvss-score: 9.2
+  reference:
+    - https://www.php.net/ChangeLog-8.php
+    - https://github.com/0x4148/CVE-2026-109618-php2shell-lab
+  metadata:
+    affected: PHP 5.4 through 8.5.11 (with session.upload_progress enabled)
+    patched: 8.5.12, 8.4.27, 8.3.36, 8.2.35
+    precondition: session.upload_progress.enabled = 1
+  tags: php,cve,cve2026,php2shell,rce,uaf,upload-progress
+
+http:
+  - method: GET
+    path:
+      - "{{BaseURL}}"
+
+    extractors:
+      - type: regex
+        name: php_version
+        internal: true
+        part: header
+        group: 1
+        regex:
+          - "(?i)X-Powered-By: *PHP/([0-9]+\\.[0-9]+\\.[0-9]+)"
+
+      - type: regex
+        name: php_version
+        part: header
+        group: 1
+        regex:
+          - "(?i)X-Powered-By: *PHP/([0-9]+\\.[0-9]+\\.[0-9]+)"
+
+      - type: regex
+        name: upload_progress_enabled
+        part: body
+        group: 1
+        regex:
+          - "(?i)session\\.upload_progress\\.enabled\\s*=\\s*(1|on)\\b"
+
+    matchers-condition: or
+    matchers:
+      # Strongest signal: affected version AND upload_progress enabled.
+      # This is the genuine php2shell exploitability fingerprint.
+      - type: dsl
+        name: exploitable-preconditions
+        dsl:
+          - "php_version != ''"
+          - "contains(body, 'session.upload_progress.enabled = 1') || contains(tolower(body), 'session.upload_progress.enabled = on')"
+          - >-
+            compare_versions(php_version, '>=8.5.0', '<8.5.12') ||
+            compare_versions(php_version, '>=8.4.0', '<8.4.27') ||
+            compare_versions(php_version, '>=8.3.0', '<8.3.36') ||
+            compare_versions(php_version, '>=8.2.0', '<8.2.35') ||
+            compare_versions(php_version, '<8.2.0')
+        condition: and
+
+      # Weaker signal: affected version only, upload_progress state unknown
+      # (e.g. target does not expose its config). Still worth a POSSIBLE flag.
+      - type: dsl
+        name: vulnerable-version-only
+        dsl:
+          - "php_version != ''"
+          - "!(contains(body, 'session.upload_progress.enabled = 1') || contains(tolower(body), 'session.upload_progress.enabled = on'))"
+          - >-
+            compare_versions(php_version, '>=8.5.0', '<8.5.12') ||
+            compare_versions(php_version, '>=8.4.0', '<8.4.27') ||
+            compare_versions(php_version, '>=8.3.0', '<8.3.36') ||
+            compare_versions(php_version, '>=8.2.0', '<8.2.35') ||
+            compare_versions(php_version, '<8.2.0')
+        condition: and

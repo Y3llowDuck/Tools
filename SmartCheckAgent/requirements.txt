@@ -1,0 +1,5 @@
+# Deterministic core.
+PyYAML>=6.0
+
+# Claude reasoning engine (agent.py assess).
+anthropic>=1.11
