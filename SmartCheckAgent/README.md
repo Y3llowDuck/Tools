@@ -50,14 +50,9 @@ Install the external Kali tools you intend to use (`nmap`, `curl`,
 `feroxbuster`, `httpx-toolkit`, `nuclei`, `exploitdb`). A plugin whose binary is
 missing is simply not offered — no code change needed.
 
-Optional — a short alias so commands stay readable (the rest of this README
-uses `sca`):
-
-```bash
-alias sca='python agent.py'
-```
-
-Without the alias, replace `sca` with `python agent.py` in every command below.
+Every command below is run as `python agent.py <subcommand>` from the repo
+root, with the virtualenv activated. If you prefer a shorter prefix, define
+your own alias, for example `alias sca='python agent.py'`.
 
 ## Updating scanner feeds
 
@@ -103,38 +98,38 @@ both with your real sign-off before running `report`.
 1. **Define scope** (see above), then verify it before touching anything:
 
    ```bash
-   sca scope show
-   sca scope check 192.168.56.10 --port 8080
+   python agent.py scope show
+   python agent.py scope check 192.168.56.10 --port 8080
    ```
 
 2. **Run capabilities** (the only way to touch a target):
 
    ```bash
-   sca capability list
-   sca capability run network_discovery 192.168.56.10 -p ports=22,80,443
-   sca capability run http_request http://192.168.56.10:8080/
+   python agent.py capability list
+   python agent.py capability run network_discovery 192.168.56.10 -p ports=22,80,443
+   python agent.py capability run http_request http://192.168.56.10:8080/
    ```
 
 3. **Or let the model drive it** (needs `ANTHROPIC_API_KEY` and `--model`):
 
    ```bash
    export ANTHROPIC_API_KEY=sk-ant-...
-   sca assess 192.168.56.10 --model <model-id> --objective "Find and validate web vulns" --max-steps 40
+   python agent.py assess 192.168.56.10 --model <model-id> --objective "Find and validate web vulns" --max-steps 40
    ```
 
    The target is optional: if `scope.yaml` has exactly one concrete host (no
    CIDRs, ignoring localhost), it's auto-selected. The model discovers →
    hypothesizes → requests capabilities → validates → records findings, then
    the text summary prints automatically. To resume a prior run instead of
-   starting over: `sca assess --run 4` — the model is re-seeded with a
+   starting over: `python agent.py assess --run 4` — the model is re-seeded with a
    summary of prior ports, tech, paths, hypotheses, and findings.
 
 4. **Watch progress, then report:**
 
    ```bash
-   sca status
-   sca summary
-   sca report --out data/report.html
+   python agent.py status
+   python agent.py summary
+   python agent.py report --out data/report.html
    ```
 
 ### Running a single scanner
@@ -143,16 +138,16 @@ You don't have to let the model drive — any capability can be run on its own.
 For example, to run **only nuclei** against an in-scope target:
 
 ```bash
-sca capability run vuln_signature_scan http://192.168.56.10:8080/
+python agent.py capability run vuln_signature_scan http://192.168.56.10:8080/
 ```
 
 Other single-scanner runs:
 
 ```bash
-sca capability run network_discovery 192.168.56.10 -p ports=22,80,443
-sca capability run web_content_discovery http://192.168.56.10:8080/
-sca capability run tech_fingerprint http://192.168.56.10:8080/
-sca capability run exploit_mapping 192.168.56.10 -p query="vsftpd 2.3.4"
+python agent.py capability run network_discovery 192.168.56.10 -p ports=22,80,443
+python agent.py capability run web_content_discovery http://192.168.56.10:8080/
+python agent.py capability run tech_fingerprint http://192.168.56.10:8080/
+python agent.py capability run exploit_mapping 192.168.56.10 -p query="vsftpd 2.3.4"
 ```
 
 Add `--dry-run` to any `capability run` to see the exact argv it would execute
@@ -168,14 +163,14 @@ variable. If neither is set, `assess` / `plugin add` fail with a clear error
 instead of guessing.
 
 ```bash
-sca assess 192.168.56.10 --model <model-id>
+python agent.py assess 192.168.56.10 --model <model-id>
 ```
 
 Or set it once per shell session:
 
 ```bash
 export SMARTCHECK_MODEL=<model-id>
-sca assess 192.168.56.10
+python agent.py assess 192.168.56.10
 ```
 
 ## What a run looks like
@@ -199,46 +194,46 @@ for verification independent of the normalized findings:
 
 ```bash
 # Scope
-sca scope show
-sca scope check <target> [--port N]
+python agent.py scope show
+python agent.py scope check <target> [--port N]
 ```
 
 ```bash
 # Runs
-sca run new --name "clientX engagement"
-sca run list
+python agent.py run new --name "clientX engagement"
+python agent.py run list
 ```
 
 ```bash
 # Onboard a new Kali tool as a plugin (the model drafts a declarative
 # adapter, never executable code — you approve it before it's used)
-sca plugin add ffuf --model <model-id>
-sca plugin add ffuf --model <model-id> --test-target http://192.168.56.10/ --yes
-sca plugin remove ffuf
+python agent.py plugin add ffuf --model <model-id>
+python agent.py plugin add ffuf --model <model-id> --test-target http://192.168.56.10/ --yes
+python agent.py plugin remove ffuf
 ```
 
 ```bash
 # Capabilities (deterministic scope gate + safety ceiling)
-sca capability list
-sca capability run <capability> <target> [-p key=value ...] [--dry-run]
+python agent.py capability list
+python agent.py capability run <capability> <target> [-p key=value ...] [--dry-run]
 ```
 
 ```bash
 # AI-driven assessment — needs ANTHROPIC_API_KEY and --model/$SMARTCHECK_MODEL
-sca assess [target] --model <id> --objective "..." --max-steps 40 --max-safety active
+python agent.py assess [target] --model <id> --objective "..." --max-steps 40 --max-safety active
 ```
 
 ```bash
 # Progress & results
-sca status
-sca summary
-sca report [--run N] [--out data/report.html]
+python agent.py status
+python agent.py summary
+python agent.py report [--run N] [--out data/report.html]
 ```
 
 ```bash
 # Safety — kill switch
-sca kill engage
-sca kill release
+python agent.py kill engage
+python agent.py kill release
 ```
 
 `-p key=value` params are JSON-parsed (`-p ports=22,80`, `-p depth=2`,
@@ -294,7 +289,7 @@ one (curl, a nuclei match) marks it tested.
   and recorded (audit trail), never executed.
 - **Safe executor** is the only process-spawning code: `shell=False`, argv
   only, per-request timeout, global rate limit, concurrency cap, and a
-  file-based **kill switch** (`sca kill engage`).
+  file-based **kill switch** (`python agent.py kill engage`).
 - **Safety levels** (`passive < active < intrusive < dangerous`) cap what may
   run automatically.
 - No DoS, persistence, malware deployment, data destruction, or destructive
@@ -304,7 +299,7 @@ one (curl, a nuclei match) marks it tested.
 
 ## Report
 
-`sca report` generates a standalone, offline HTML pentest report: cover page,
+`python agent.py report` generates a standalone, offline HTML pentest report: cover page,
 severity dashboard, executive summary, scope & methodology, attack surface,
 findings summary, detailed findings with CVSS/CWE/OWASP mappings, evidence
 and reproduction steps, attack paths, remediation guidance, and testing
@@ -324,7 +319,7 @@ API keys, or session tokens.
 | httpx plugin refuses to run | `/usr/bin/httpx` resolved to the unrelated Python CLI | Install `httpx-toolkit`; the plugin detects and rejects the wrong binary |
 | `assess`/`plugin add` fail with "No model specified" | Neither `--model` nor `$SMARTCHECK_MODEL` is set | Pass `--model <id>` or `export SMARTCHECK_MODEL=<id>` |
 | `assess` fails immediately / no model output | Missing or invalid `ANTHROPIC_API_KEY` | `export ANTHROPIC_API_KEY=sk-ant-...` |
-| Scan seems stuck or runaway | Rate limit/timeout/concurrency misconfigured, or a tool hanging | `sca kill engage` to halt immediately, then adjust `limits` in `scope.yaml` |
+| Scan seems stuck or runaway | Rate limit/timeout/concurrency misconfigured, or a tool hanging | `python agent.py kill engage` to halt immediately, then adjust `limits` in `scope.yaml` |
 | Resuming a run redoes recon | Ran a fresh `assess` instead of resuming | Pass `--run N` for the existing run to resume |
 
 ## What never gets committed
