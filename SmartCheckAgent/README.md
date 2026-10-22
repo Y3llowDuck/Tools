@@ -33,6 +33,17 @@ result, form a hypothesis, decide the next test, repeat.
 
 ## Install
 
+This tool lives in the [`Tools`](https://github.com/Y3llowDuck/Tools) repo, so
+clone it and `cd` into this folder first — every command is run from here (the
+directory that contains `agent.py`):
+
+```bash
+git clone https://github.com/Y3llowDuck/Tools.git
+cd Tools/SmartCheckAgent
+```
+
+Then set up the environment (Python 3.9+):
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
@@ -41,14 +52,16 @@ python agent.py init
 cp scope.example.yaml scope.yaml
 ```
 
-`pip install -r requirements.txt` pulls PyYAML (and `anthropic`, needed only for
-`assess`). `python agent.py init` creates the data dir, SQLite schema, and seeds
-plugins. Then edit `scope.yaml` with your **authorized** targets. Later sessions
-just need `source .venv/bin/activate` first; `.venv/` is gitignored.
+`pip install -r requirements.txt` pulls PyYAML and `anthropic` (the latter is
+only exercised by `assess`). `python agent.py init` creates the data dir, SQLite
+schema, and seeds plugins; it prints a reminder to copy the scope template,
+which the next line does. Then edit `scope.yaml` with your **authorized**
+targets. Later sessions just need `source .venv/bin/activate` from this folder
+first; `.venv/` is gitignored.
 
-Every command below is run as `python agent.py <subcommand>` from the repo
-root, with the virtualenv activated. If you prefer a shorter prefix, define
-your own alias, for example `alias sca='python agent.py'`.
+Every command below is run as `python agent.py <subcommand>` from this folder,
+with the virtualenv activated. If you prefer a shorter prefix, define your own
+alias, for example `alias sca='python agent.py'`.
 
 ## Prerequisites
 
